@@ -1,1 +1,56 @@
+name: Build T95 Max Armbian Image
 
+on:
+  workflow_dispatch: # Allows you to trigger the build manually from the Actions tab
+  push:
+    branches: [ "main", "master" ] # Builds automatically when you push to main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Free up disk space on GitHub Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
+          df -h
+
+      - name: Checkout Your Custom Configurations
+        uses: actions/checkout@v4
+        with:
+          path: custom-repo
+
+      - name: Checkout Official Armbian Build System
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/build
+          ref: main
+          path: armbian-build
+
+      - name: Apply Custom Configurations
+        run: |
+          # Copy your repository's userpatches folder into the armbian build folder
+          cp -r custom-repo/userpatches/* armbian-build/userpatches/
+
+      - name: Compile Armbian Image
+        working-directory: armbian-build
+        run: |
+          # Run the Armbian compile script with sudo
+          sudo ./compile.sh \
+            BOARD="t95max-h618" \
+            BRANCH="current" \
+            RELEASE="bookworm" \
+            BUILD_MINIMAL="no" \
+            BUILD_DESKTOP="no" \
+            KERNEL_CONFIGURE="no" \
+            EXPERT="yes" \
+            COMPRESS_OUTPUTIMAGE="sha,xz" # Compress to save space for artifacts
+
+      - name: Upload Built Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: T95Max-Armbian-Image
+          path: armbian-build/output/images/*.img.xz
+          retention-days: 7
